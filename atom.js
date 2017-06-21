@@ -1,4 +1,4 @@
-//
+/* eslint-disable indent, no-var, prefer-arrow-callback */
 // atom.js
 // https://github.com/zynga/atom
 // Author: Chris Campbell (@quaelin)
@@ -8,33 +8,33 @@
 	'use strict';
 
 	var
-		atom,
-		name = 'atom',
-		VERSION = '0.5.6',
-
 		ObjProto = Object.prototype,
 		hasOwn = ObjProto.hasOwnProperty,
-
-		typeObj = 'object',
-		typeUndef = 'undefined',
-
-		root = typeof window !== typeUndef ? window : global,
-		had = hasOwn.call(root, name),
-		prev = root[name]
+		typeUndef = '' + undef,
+		root = typeof window !== typeUndef ? window : global
 	;
-
 
 	// Convenience methods
 	var slice = Array.prototype.slice;
 	var isArray = Array.isArray || function (obj) {
 		return ObjProto.toString.call(obj) === '[object Array]';
 	};
+	function isCriticalError(data) {
+		return (
+			data instanceof EvalError
+			|| (typeof InternalError !== 'undefined' && data instanceof InternalError)
+			|| data instanceof RangeError
+			|| data instanceof ReferenceError
+			|| data instanceof SyntaxError
+			|| data instanceof TypeError
+			|| data instanceof URIError
+		);
+	}
 	function inArray(arr, value) {
-		for (var i = arr.length; --i >= 0;) {
-			if (arr[i] === value) {
-				return true;
-			}
-		}
+		return arr.indexOf(value) > -1;
+	}
+	function isObject(input) {
+		return input && typeof input === 'object';
 	}
 	function toArray(obj) {
 		return isArray(obj) ? obj : [obj];
@@ -47,24 +47,35 @@
 		}
 		return true;
 	}
-
+	function clear() {
+		Array.prototype.forEach.call(arguments, function(clearMe) {
+			Object.keys(clearMe).forEach(function(key) {
+				delete clearMe[key];
+			});
+		});
+	}
+	var values = Object.values || function(obj) {
+		return Object.keys(obj).map(function(k) {
+			return obj[k];
+		});
+	};
 
 	// Property getter
 	function get(nucleus, keyOrList, func) {
-		var isList = isArray(keyOrList), keys = isList ? keyOrList : [keyOrList],
-			key, values = [], props = nucleus.props, missing = {},
+		var keys = isArray(keyOrList) ? keyOrList : [keyOrList],
+			values = [],
+			props = nucleus.props,
+			missing = {},
 			result = { values: values };
-		for (var i = keys.length; --i >= 0;) {
-			key = keys[i];
+		keys.forEach(function(key) {
 			if (!hasOwn.call(props, key)) {
 				result.missing = missing;
 				missing[key] = true;
 			}
-			values.unshift(props[key]);
-		}
+			values.push(props[key]);
+		});
 		return func ? func.apply({}, values) : result;
 	}
-
 
 	// Helper to remove an exausted listener from the listeners array
 	function removeListener(listeners) {
@@ -80,19 +91,25 @@
 	// Used to detect listener recursion; a given object may only appear once.
 	var objStack = [];
 
-	// Property setter
-	function set(nucleus, key, value) {
-		var keys, listener, listeners = nucleus.listeners, missing,
-			listenersCopy = [].concat(listeners), i = listenersCopy.length,
-			props = nucleus.props, oldValue = props[key],
+	function performSet(config, nucleus, key, value) {
+		var keys,
+			listener,
+			listeners = nucleus.listeners,
+			missing,
+			listenersCopy = [].concat(listeners),
+			i = listenersCopy.length,
+			props = nucleus.props,
+			oldValue = props[key],
 			had = hasOwn.call(props, key),
-			isObj = value && typeof value === typeObj;
+			isObj = isObject(value);
+
 		props[key] = value;
+
 		if (!had || oldValue !== value || (isObj && !inArray(objStack, value))) {
 			if (isObj) {
 				objStack.push(value);
 			}
-			while (--i >= 0) {
+			while (i--) {
 				listener = listenersCopy[i];
 				keys = listener.keys;
 				missing = listener.missing;
@@ -116,7 +133,62 @@
 			if (isObj) {
 				objStack.pop();
 			}
+			if (config.onChange) {
+				// disable event triggering for localstorage synchronization lastStorageUpdateTimestamp helper
+				if (key !== 'lastStorageUpdateTimestamp') {
+					config.onChange(key, value);
+				}
+			}
+			if (config.persistenceLib) {
+				// save model to a localStorage for data synchronization across sessions.
+				config.persistenceLib.set(
+					config.modelName,
+					Object.assign({}, nucleus.props, { lastStorageUpdateTimestamp: Date.now() })
+				);
+			}
 		}
+	}
+
+	// Property setter
+	function set(config, nucleus, key, value, keyOrMap) {
+		var validationError = false;
+		var promises = {};
+
+		if (config.validation && config.validation[key]) {
+			var validation = config.validation[key];
+
+			validationError = Object.keys(validation).find(function(validationKey) {
+				var validationResult = validation[validationKey](value, keyOrMap);
+				if (typeof validationResult === 'boolean') {
+					return !validationResult;
+				} else if (validationResult instanceof Promise) {
+					promises[validationKey] = new Promise(function(resolve, reject) {
+						validationResult
+						.then(resolve, function() {
+							reject(validationKey);
+						});
+					});
+					return false;
+				}
+
+				throw new Error('ERROR: Wrong data type returned by ' + validationKey + 'validator. Expected Boolean or Promise.');
+			});
+		}
+
+		return new Promise(function(resolve, reject) {
+			if (validationError) {
+				reject(validationError);
+			} else if (Object.keys(promises).length) {
+				Promise.all(values(promises))
+				.then(function() {
+					performSet(config, nucleus, key, value);
+					resolve();
+				}, reject);
+			} else {
+				performSet(config, nucleus, key, value);
+				resolve();
+			}
+		});
 	}
 
 
@@ -133,9 +205,9 @@
 
 
 	// Helper function for setting up providers.
-	function provide(nucleus, key, provider) {
+	function provide(config, nucleus, key, provider) {
 		provider(preventMultiCall(function (result) {
-			set(nucleus, key, result);
+			set(config, nucleus, key, result);
 		}));
 	}
 
@@ -153,8 +225,13 @@
 
 
 	// Return an instance.
-	atom = root[name] = function () {
+	function atom() {
+		if (this instanceof atom) {
+			throw new Error("Don't use atom with a `new` keyword please.");
+		}
+
 		var
+			config = this || {},
 			args = slice.call(arguments, 0),
 			nucleus = {},
 			props = nucleus.props = {},
@@ -164,6 +241,25 @@
 			q = []
 		;
 
+		function getParsedValue(key, val) {
+			return config.parsers && config.parsers[key]
+				? config.parsers[key](val)
+				: val;
+		}
+
+		if (config.persistent) {
+			throw new Error('`persistent` param is abandoned in favour of `persistenceLib`');
+		}
+
+		if (config.persistenceLib) {
+			if (!config.modelName) {
+				throw new Error('Persistent model needs a name to be saved in localStorage. Please provide a "modelName" property.');
+			}
+
+			if (typeof config.persistenceLib.set !== 'function') {
+				throw new Error('`persistenceLib` property in atom-js model needs to expose `set` method.');
+			}
+		}
 		// Execute the next function in the async queue.
 		function doNext() {
 			if (q) {
@@ -198,15 +294,24 @@
 			// Remove references to all properties and listeners.  This releases
 			// memory, and effective stops the atom from working.
 			destroy: function () {
-				delete nucleus.props;
-				delete nucleus.needs;
-				delete nucleus.providers;
-				delete nucleus.listeners;
-				while (q.length) {
-					q.pop();
-				}
-				nucleus = props = needs = providers = listeners =
-					q = q.pending = q.next = q.args = 0;
+				clear(nucleus, config, q);
+				q.length = 0;
+				nucleus = props = needs = providers = listeners = q = 0;
+			},
+
+			// clear all data, keep validation and listeners.
+			clear: function() {
+				var promises = [];
+				me.keys().forEach(function(key) {
+					// set undefined without validation, but trigger events
+					promises.push(
+						me.set(key, undefined, false).then(function() {
+							delete props[key];
+						})
+					);
+				});
+
+				return Promise.all(promises);
 			},
 
 			// Call `func` on each of the specified keys.  The key is provided as
@@ -229,8 +334,9 @@
 			entangle: function (otherAtom, keyOrListOrMap) {
 				var
 					isList = isArray(keyOrListOrMap),
-					isMap = !isList && typeof keyOrListOrMap === typeObj,
-					i, key,
+					isMap = !isList && isObject(keyOrListOrMap),
+					i,
+					key,
 					keys = isList ? keyOrListOrMap : isMap ? [] : [keyOrListOrMap],
 					map = isMap ? keyOrListOrMap : {}
 				;
@@ -261,9 +367,25 @@
 			// Get current values for the specified keys.  If `func` is provided,
 			// it will be called with the values as args.
 			get: function (keyOrList, func) {
+				if (arguments.length === 0) {
+					return props;
+				}
 				var result = get(nucleus, keyOrList, func);
-				return func ? result : typeof keyOrList === 'string' ?
-					result.values[0] : result.values;
+				if (!func) {
+					result = typeof keyOrList === 'string' ? result.values[0] : result.values;
+				}
+				return result;
+			},
+
+			pick: function (keyOrList) {
+				var keysList = [].concat(keyOrList);
+				var result = {};
+				keysList.forEach(function(key) {
+					if (props.hasOwnProperty(key)) {
+						result[key] = props[key];
+					}
+				});
+				return result;
 			},
 
 			// Returns true iff all of the specified keys exist (regardless of
@@ -280,13 +402,7 @@
 
 			// Return a list of all keys.
 			keys: function () {
-				var keys = [];
-				for (var key in props) {
-					if (hasOwn.call(props, key)) {
-						keys.push(key);
-					}
-				}
-				return keys;
+				return Object.keys(props);
 			},
 
 			// Add arbitrary properties to this atom's interface.
@@ -311,7 +427,7 @@
 					key = keys[i];
 					provider = providers[key];
 					if (!hasOwn.call(props, key) && provider) {
-						provide(nucleus, key, provider);
+						provide(config, nucleus, key, provider);
 						delete providers[key];
 					} else {
 						needs[key] = true;
@@ -328,8 +444,11 @@
 			// function will automatically be unbound after being called the first
 			// time, so it is guaranteed to be called no more than once.
 			next: function (keyOrList, func) {
-				listeners.unshift(
-					{ keys: toArray(keyOrList), cb: func, calls: 1 });
+				listeners.unshift({
+					keys: toArray(keyOrList),
+					cb: func,
+					calls: 1
+				});
 				return me;
 			},
 
@@ -345,9 +464,10 @@
 				}
 				while (--i >= 0) {
 					listener = listeners[i];
-					if (listener.cb === func &&
-						(!keyOrList || keysMatch(listener.keys, keyOrList)))
-					{
+					if (
+						listener.cb === func &&
+						(!keyOrList || keysMatch(listener.keys, keyOrList))
+					) {
 						listeners.splice(i, 1);
 					}
 				}
@@ -357,9 +477,16 @@
 			// Call `func` whenever any of the specified keys change.  The values
 			// of the keys will be provided as args to func.
 			on: function (keyOrList, func) { // alias: `bind`
-				listeners.unshift({ keys: toArray(keyOrList), cb: func,
-					calls: Infinity });
-				return me;
+				listeners.unshift({
+					keys: toArray(keyOrList),
+					cb: func,
+					calls: Infinity
+				});
+				return {
+					remove: function() {
+						me.remove(keyOrList, func);
+					}
+				};
 			},
 
 			// Call `func` as soon as all of the specified keys have been set.  If
@@ -371,11 +498,15 @@
 					results = get(nucleus, keys),
 					values = results.values,
 					missing = results.missing;
-				if (!missing) {
-					func.apply({}, values);
+				if (missing) {
+					listeners.unshift({
+						keys: keys,
+						cb: func,
+						missing: missing,
+						calls: 1
+					});
 				} else {
-					listeners.unshift(
-						{ keys: keys, cb: func, missing: missing, calls: 1 });
+					func.apply({}, values);
 				}
 				return me;
 			},
@@ -386,7 +517,7 @@
 			// functions will be called at most once.
 			provide: function (key, func) {
 				if (needs[key]) {
-					provide(nucleus, key, func);
+					provide(config, nucleus, key, func);
 				} else if (!providers[key]) {
 					providers[key] = func;
 				}
@@ -395,48 +526,107 @@
 
 			// Set value for a key, or if `keyOrMap` is an object then set all the
 			// keys' corresponding values.
-			set: function (keyOrMap, value) {
-				if (typeof keyOrMap === typeObj) {
-					for (var key in keyOrMap) {
-						if (hasOwn.call(keyOrMap, key)) {
-							set(nucleus, key, keyOrMap[key]);
-						}
-					}
-				} else {
-					set(nucleus, keyOrMap, value);
+			set: function (keyOrMap, value, validateFirst) {
+				var localConfig = config;
+				if (validateFirst === undef) {
+					validateFirst = true;
 				}
-				return me;
+				if (!validateFirst) {
+					localConfig = Object.assign({}, localConfig, {
+						validation: undef
+					});
+				}
+
+				if (isObject(keyOrMap)) {
+					var keys = Object.keys(keyOrMap);
+					keyOrMap = Object.assign({}, keyOrMap);
+					keys.forEach(function(key) {
+						keyOrMap[key] = getParsedValue(key, keyOrMap[key]);
+					});
+					return new Promise(function(resolve, reject) {
+						var results = {};
+						if (!keys.length) {
+							return resolve();
+						}
+						keys.forEach(function(key) {
+							results[key] = set(localConfig, nucleus, key, keyOrMap[key], keyOrMap);
+							results[key]
+							.then(function() {
+								results[key] = false;
+							}, function(error) {
+								results[key] = error;
+							});
+							return results[key];
+						});
+						Promise.all(values(results))
+						.then(resolve, function() {
+							reject(results);
+						});
+					});
+				}
+
+				return set(localConfig, nucleus, keyOrMap, getParsedValue(keyOrMap, value));
 			}
 		};
 		me.bind = me.on;
 		me.unbind = me.off;
 
 		if (args.length) {
+			args[2] = false; // disable initial validation
 			me.set.apply(me, args);
 		}
 
-		return me;
-	};
-
-	atom.VERSION = VERSION;
-
-	// For backwards compatibility with < 0.4.0
-	atom.create = atom;
-
-	atom.noConflict = function () {
-		if (root[name] === atom) {
-			root[name] = had ? prev : undef;
-			if (!had) {
-				try {
-					delete root[name];
-				} catch (ex) {
+		if (config.methods) {
+			Object.keys(config.methods).forEach(function (key) {
+				if (me[key]) {
+					throw new Error(me[key] + ' already exists in atom-js.');
 				}
-			}
+				var promiseCache = {};
+				me[key] = function () {
+					var cacheKey = key + ',' + (arguments.length ? JSON.stringify(arguments) : '');
+					if (promiseCache[cacheKey]) {
+						// OPTIMISATION:
+						// Don't create new promise, when old call was not resolved/rejected yet.
+						return promiseCache[cacheKey];
+					}
+					// make all methods Promise.
+					var simpleArgs = slice.call(arguments, 0);
+					var that = this;
+					var promise = new Promise(function (resolve, reject) {
+						simpleArgs.unshift(resolve, reject);
+						config.methods[key].apply(that, simpleArgs);
+					});
+					function clearCache() {
+						delete promiseCache[cacheKey];
+					}
+					promise.then(clearCache, function (err) {
+						clearCache();
+						if (isCriticalError(err)) console.error('atom.js caught Promise error for you!', err);
+					});
+
+					promiseCache[cacheKey] = promise;
+
+					return promise;
+				};
+			});
 		}
-		return atom;
+
+		return me;
+	}
+
+	atom.setup = function (config) {
+		// possible options:
+		// - validation
+		// - onChange
+		// - methods
+		// - persistenceLib
+		// - parsers
+		return atom.bind(config);
 	};
 
 	if (typeof module !== typeUndef && module.exports) {
 		module.exports = atom;
+	} else {
+		root.atom = atom;
 	}
 }());

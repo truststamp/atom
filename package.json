@@ -1,19 +1,22 @@
 {
   "name": "atom-js",
-  "version": "0.5.6",
+  "version": "0.7.0",
   "description": "Small JS class that provides async control flow, property listeners, barrier pattern, and more.",
-  "author": "Chris Campbell <ccampbell@zynga.com> (https://github.com/quaelin)",
+  "author": [
+    "Chris Campbell <ccampbell@zynga.com> (https://github.com/quaelin)",
+    "Cezary Daniel Nowak (http://nowak.click)"
+  ],
   "homepage": "https://github.com/zynga/atom",
-  "bugs": {
-    "url": "https://github.com/zynga/atom/issues"
-  },
   "repository": {
     "type": "git",
-    "url": "git://github.com/zynga/atom.git"
+    "url": "git://github.com/truststamp/atom-js.git"
   },
   "main": "./atom.js",
   "scripts": {
     "test": "node test.js"
   },
-  "license": "BSD"
+  "license": "BSD",
+  "peerDependencies": {
+  	"promiz": "*"
+  }
 }

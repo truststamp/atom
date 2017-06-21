@@ -347,6 +347,11 @@ assert('method chaining works',
 	.set('success', mc.get('a,b,c,d,e,f'.split(',')) + '' === 'b,c,d,e,f,g')
 	.get('success') === true);
 
+var inputObj = {x: 1, y: 2};
+var getAll = atom(inputObj);
+assert('atomInstance.get with no params returns all data',
+	getAll.get() === inputObj);
+
 
 logger(totals);
 
