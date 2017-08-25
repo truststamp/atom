@@ -529,12 +529,9 @@
 			set: function (keyOrMap, valueOrSetConfig, setConfig) {
 				var localConfig = config;
 				var isMap = isObject(keyOrMap);
-				var validateFirst = ((isMap ? valueOrSetConfig : setConfig) || {}).validate;
+				var setConfig = Object.assign({ validate: true }, isMap ? valueOrSetConfig : setConfig);
 
-				if (validateFirst === undef) {
-					validateFirst = true;
-				}
-				if (!validateFirst) {
+				if (!setConfig.validate) {
 					localConfig = Object.assign({}, localConfig, {
 						validation: undef
 					});
