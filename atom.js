@@ -526,18 +526,18 @@
 
 			// Set value for a key, or if `keyOrMap` is an object then set all the
 			// keys' corresponding values.
-			set: function (keyOrMap, value, validateFirst) {
+			set: function (keyOrMap, valueOrSetConfig, setConfig) {
 				var localConfig = config;
-				if (validateFirst === undef) {
-					validateFirst = true;
-				}
-				if (!validateFirst) {
+				var isMap = isObject(keyOrMap);
+				var setConfig = Object.assign({ validate: true }, isMap ? valueOrSetConfig : setConfig);
+
+				if (!setConfig.validate) {
 					localConfig = Object.assign({}, localConfig, {
 						validation: undef
 					});
 				}
 
-				if (isObject(keyOrMap)) {
+				if (isMap) {
 					var keys = Object.keys(keyOrMap);
 					keyOrMap = Object.assign({}, keyOrMap);
 					keys.forEach(function(key) {
@@ -565,7 +565,7 @@
 					});
 				}
 
-				return set(localConfig, nucleus, keyOrMap, getParsedValue(keyOrMap, value));
+				return set(localConfig, nucleus, keyOrMap, getParsedValue(keyOrMap, valueOrSetConfig));
 			}
 		};
 		me.bind = me.on;
