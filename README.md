@@ -237,7 +237,7 @@ a single expression.
 		.once('shutdown', function () {
 			console.log('Shutting down.');
 		})
-		.set('loaded', true);
+		.set('loaded', { validate: true });
 ```
 
 The `.chain()`, `.each()`, `.entangle()`, `.mixin()`, `.need()`, `.next()`,
