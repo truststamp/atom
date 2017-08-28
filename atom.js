@@ -305,7 +305,7 @@
 				me.keys().forEach(function(key) {
 					// set undefined without validation, but trigger events
 					promises.push(
-						me.set(key, undefined, false).then(function() {
+						me.set(key, undefined, { validate: false }).then(function() {
 							delete props[key];
 						})
 					);
