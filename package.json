@@ -15,8 +15,5 @@
   "scripts": {
     "test": "node test.js"
   },
-  "license": "BSD",
-  "peerDependencies": {
-  	"promiz": "*"
-  }
+  "license": "BSD"
 }
