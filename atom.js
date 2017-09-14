@@ -161,7 +161,9 @@
 				var validationResult = validation[validationKey](value, keyOrMap);
 				if (typeof validationResult === 'boolean') {
 					return !validationResult;
-				} else if (validationResult instanceof Promise) {
+				// better check if validationResult is a Promise; instanceof Promise was false on Safari
+				} else if (typeof validationResult.then === 'function'
+					&& typeof validationResult.catch === 'function') {
 					promises[validationKey] = new Promise(function(resolve, reject) {
 						validationResult
 						.then(resolve, function() {
