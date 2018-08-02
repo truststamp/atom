@@ -264,7 +264,7 @@
 		}
 		if (config.persistencePeriod) {
 			if (!config.persistenceLib) {
-				throw new Error('Persistence expiration needs a persistece library. Please provide a "persistenceLib" property.');
+				throw new Error('Persistence expiration needs a persistence library. Please provide a "persistenceLib" property.');
 			}
 		}
 		// Execute the next function in the async queue.
