@@ -594,7 +594,7 @@
 			if (me.persistenceLib) {
 				Object.assign(
 					finalMap,
-					config.persistenceLib.get(config.modelName),
+					config.persistenceLib.get(config.modelName)
 				)
 			}
 
