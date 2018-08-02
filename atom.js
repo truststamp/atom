@@ -573,8 +573,32 @@
 		me.bind = me.on;
 		me.unbind = me.off;
 
+		if (config.persistencePeriod) {
+			const persistedData = config.persistenceLib.get(config.modelName) || {};
+			const lastStorageUpdateTimestamp = persistedData.lastStorageUpdateTimestamp;
+			if (lastStorageUpdateTimestamp && Date.now() - lastStorageUpdateTimestamp > config.persistencePeriod) {
+				config.persistenceLib.remove(config.modelName);
+			}
+		}
+
 		if (args.length) {
 			args[2] = false; // disable initial validation
+
+			var finalMap = {};
+
+			if (me.persistenceLib) {
+				Object.assign(
+					finalMap,
+					config.persistenceLib.get(config.modelName),
+				)
+			}
+
+			if (isObject(keyOrMap)) {
+				Object.assign(finalMap, keyOrMap);
+			} else {
+				finalMap[args[0]] = args[1];
+			}
+
 			me.set.apply(me, args);
 		}
 
