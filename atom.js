@@ -262,6 +262,11 @@
 				throw new Error('`persistenceLib` property in atom-js model needs to expose `set` method.');
 			}
 		}
+		if (config.persistencePeriod) {
+			if (!config.persistenceLib) {
+				throw new Error('Persistence expiration needs a persistece library. Please provide a "persistenceLib" property.');
+			}
+		}
 		// Execute the next function in the async queue.
 		function doNext() {
 			if (q) {
