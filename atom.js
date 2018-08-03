@@ -262,6 +262,11 @@
 				throw new Error('`persistenceLib` property in atom-js model needs to expose `set` method.');
 			}
 		}
+		if (config.persistencePeriod) {
+			if (!config.persistenceLib) {
+				throw new Error('Persistence expiration needs a persistence library. Please provide a "persistenceLib" property.');
+			}
+		}
 		// Execute the next function in the async queue.
 		function doNext() {
 			if (q) {
@@ -573,8 +578,32 @@
 		me.bind = me.on;
 		me.unbind = me.off;
 
+		if (config.persistencePeriod) {
+			const persistedData = config.persistenceLib.get(config.modelName) || {};
+			const lastStorageUpdateTimestamp = persistedData.lastStorageUpdateTimestamp;
+			if (lastStorageUpdateTimestamp && Date.now() - lastStorageUpdateTimestamp > config.persistencePeriod) {
+				config.persistenceLib.remove(config.modelName);
+			}
+		}
+
 		if (args.length) {
 			args[2] = false; // disable initial validation
+
+			var finalMap = {};
+
+			if (me.persistenceLib) {
+				Object.assign(
+					finalMap,
+					config.persistenceLib.get(config.modelName)
+				)
+			}
+
+			if (isObject(keyOrMap)) {
+				Object.assign(finalMap, keyOrMap);
+			} else {
+				finalMap[args[0]] = args[1];
+			}
+
 			me.set.apply(me, args);
 		}
 

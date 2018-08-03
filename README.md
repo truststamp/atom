@@ -389,6 +389,9 @@ car.set({ engine: '746cc', brand: 'Syrena' });
 NOTE: One extra parameter is always added to modelData: `lastStorageUpdateTimestamp`.
 			Feel free to use it for syncing data between tabs.
 
+## SETUP: `persistencePeriod: number`
+
+A number of milliseconds that the model should be kept. It will be removed when trying to load it from storage for the first time after expiration
 
 ## SETUP: `onChange: function`
 `onChange(key, value)` is triggered for every change in a model
