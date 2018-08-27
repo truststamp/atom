@@ -626,6 +626,8 @@
 		return atom.bind(config);
 	};
 
+	atom.reactConnect = require('./reactConnect.js');
+
 	if (typeof module !== typeUndef && module.exports) {
 		module.exports = atom;
 	} else {
