@@ -105,7 +105,6 @@ module.exports = (model, fieldsToInclude) => {
 				}
 			}
 
-
 			return ComposedAtomComponent;
 		}
 	}
